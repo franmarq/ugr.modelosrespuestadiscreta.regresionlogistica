@@ -1,0 +1,159 @@
+---
+title: "UGR Estadistica Aplicada MOd. Respouesta Discreta Regresion Logistica Ejer1"
+author: "franmarq@gmail.com"
+date: '2022-11-01'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Se cree que la causa de la explosion de la lanzadera espacial americana
+Challenger pudo ser la temperatura del momento del despegue que fue
+de 31 grados Fahrenheit. Para contrastar estadsticamente esta hipote-
+sis se dispone de los datos de la siguiente tabla que corresponden a 23
+simulacros de lanzamientos realizados previamente al lanzamiento real:
+
+Teniendo en cuenta que, el resultado de cada simulacro de lanzamiento
+es 1 si se produce algun fallo y 0 si no se produce ninguno, se pide
+a) Ajustar un modelo de regresion logstica para explicar la probabi-
+lidad de fallo en funcion de la temperatura del despegue. Interpre-
+tar sus parametros en terminos de cocientes de ventajas y estudiar
+su signicacion estadstica mediante test de Wald e intervalos de
+conanza del 95%:
+b) Contrastar la bondad del ajuste del modelo ajustado mediante el
+test mas adecuado y validarlo mediante un analisis de residuos y
+medidas de in
+uencia.
+c) Construir, para el modelo ajustado, un test de diagnostico optimo
+para decidir si el lanzamiento de un cohete sera fallido en funcion
+de la temperatura en el momento de lanzamiento. Calcular la tasa
+de verdaderos positivos y falsos positivos asociada.
+d) Obtener e interpretar la curva ROC.
+
+Solucion:
+
+en primer lugar se leen los datos a analizar. Se verifican que estan corectamente leidos
+
+```{r data}
+challen<-read.table("data_challenger.txt",header=TRUE,sep=" ")
+str(challen)
+table(challen$Simulacro)
+```
+
+en primer lugar graficamos los datos.
+
+```{r plot1}
+colores <- NULL
+#se puede hacer el lanzamiento o en pocas palabras no ay riesgos 
+colores[challen$Simulacro==0] <- "green"
+#Rojos depresenta que son riegos que ay al lancamiento
+colores[challen$Simulacro==1] <- "red"
+plot(challen$Temperatura, challen$Simulacro, pch=21, bg=colores, xlab = "Temperatura", ylab = "fallo")
+
+#Para poner anotacion en la graficas un cuadrito con datos se muestran abajo a la izquierda 
+legend("bottomleft", c("No defecto", "Si defecto"),pch =21, col=c("green","red") )
+
+```
+
+
+
+
+```{r reglog}
+# Ajuste de un modelo logístico.
+reglog <- glm(Simulacro ~ Temperatura, data = challen, family=binomial)
+summary(reglog)
+coef(reglog) #coeficientes del modelo ajustado
+```
+
+estimacion de las probabilidades de exito de predecir para los distntos valores de la variable explicativa
+```{r fittedval}
+fitted.values(reglog)
+```
+
+obtener las predicciones de varios modelos que coincide con fitted.values
+```{r preditval}
+predict(reglog,type= "response")
+
+```
+
+
+
+estimacion del predictor lineal dado por el modelo
+```{r predmod}
+predict(reglog,type = "link")
+```
+
+ademas del anterios ahora un segundo vector con los errores estandarde estimacion
+
+```{r predmod2}
+predict(reglog,type= "response",se.fit = T)
+```
+
+un nuevo Data.Frame con observaciones de la variable
+explicativa para los que predecir la probabilidad de exito.
+
+```{r predictnew}
+Nuevas.temp<-data.frame(c(54,60,80))
+names(Nuevas.temp)<-"Temperatura"
+Nuevas.temp
+
+predict(reglog,newdata = Nuevas.temp,type= "response",se.fit = T)
+
+
+```
+
+test de bondad de ajuste de Hosmer y Lemeshow para 10 grupos ofrece el siguiente resultado:
+
+```{r testbondad}
+hosmerlem.test(challen,fitted.values(reglog),g=10,group=T)
+## REVISAR RESULTADO
+```
+Este resultado conduce a rechazar la hipotesis nula del test de bondad
+del ajuste del modelo de regresion logstica, y por tanto a NO aceptar que el
+modelo logstico se ajusta bien a los datos.
+
+Intervalos de conanza
+Una alternativa para analizar la signicacion
+de parametros es a traves de sus intervalos de conanza.
+
+```{r intconf}
+confint.default(reglog,level=0.95)
+# obtener intervalos de conanza para dicha ventaja Bo y dicho cociente de ventajas B1:
+exp(confint.default(reglog,level=0.95))
+```
+si el intervalo de conanza a nivel 1-alpha para la exponencial
+del parametro B1 contiene el valor 1, se poda concluir la no signicacion de
+parametro B1 y por tanto la independencia de la respuesta de la variable
+explicativa.
+
+
+grafico del modelo
+
+```{r plotreglog}
+# Representación gráfica del modelo.
+require(ggplot2)
+ggplot(data = challen, aes(x = Temperatura, y = Simulacro)) +
+  geom_point(aes(color = as.factor(Simulacro)), shape = 1) + 
+  stat_function(fun = function(x){predict(reglog,
+                                          newdata = data.frame(Temperatura = x),
+                                          type = "response")}) +
+  theme_bw() +
+  labs(title = "Regresión logística",
+       y = "Probabilidad fallo") +
+  theme(legend.position = "none")
+
+```
+
+grafico de la curva ROC
+
+```{r curvaROC}
+require(pROC)
+CurvaROC<-roc(challen$Simulacro,fitted.values(reglog))
+CurvaROC
+CurvaROC$thresholds
+CurvaROC$sensitivities
+CurvaROC$specificities
+plot(CurvaROC)
+```
